@@ -5,7 +5,7 @@ format:
     html:
         embed-resources: true
         code-line-numbers: true
-
+# link to GitHub Repository: https://github.com/lilysteinberg/GSB-544---Computing-and-ML/tree/f637a6f51351c496daac3d8ca7cf2226f6f6df6e/Week%201
 ---
 
 This dataset contains a subset of the fuel economy data from the EPA.
