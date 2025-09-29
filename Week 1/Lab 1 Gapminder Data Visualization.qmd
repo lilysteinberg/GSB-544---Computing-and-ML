@@ -1,0 +1,311 @@
+---
+title: "Lab 1: Gapminder Data Visualization"
+author: Lily
+format:
+    html:
+        embed-resources: true
+        code-line-numbers: true
+        code-fold: true
+---
+**GitHub Repository**: <https://github.com/lilysteinberg/GSB-544---Computing-and-ML/tree/main/Week%201>
+
+# Task 1
+
+1.  The aesthetics are x = income, y = life expectancy, size = population, color = four_regions, and fill = four_regions.
+
+2.  
+
+```{python}
+#| label: Task 1 set up
+#| code-fold: false
+
+# load packages
+import pandas as pd
+from plotnine import *
+from matplotlib import colors as mcolors
+
+# load data
+dfQ1 = pd.read_csv('q1data.csv')
+dfQ1 = dfQ1.dropna()
+
+```
+
+3.  
+```{python}
+#| label: Task 1 plot 1
+
+# setting up custom colors based on matplotlib library options
+custom_colors = {
+    'africa': 'darkturquoise', 
+    'americas': 'lawngreen', 
+    'asia': 'tomato', 
+    'europe': 'yellow'
+    }
+
+custom_outline = {
+    'africa': 'dimgray', 
+    'americas': 'dimgray', 
+    'asia': 'dimgray', 
+    'europe': 'dimgray'
+    }
+
+# plot
+(ggplot(dfQ1,
+aes(
+    x = "income",
+    y = "life_exp",
+    size = "population",
+    color = "four_regions",
+    fill = "four_regions"
+))
+# bubbles
++ geom_point ()
++ scale_color_manual(values = custom_outline)
++ scale_fill_manual(values = custom_colors)
++ scale_size_continuous(range=(1, 20))
+# axes and legends
++ scale_x_log10(breaks = [500, 1000, 2000, 4000, 8000, 16000, 32000, 64000])
++ scale_y_continuous(limits=(10,90), breaks = range(10,91,10))
++ labs(x= "Income", y = "Life expectancy", fill = "Four regions")
++ guides(size = "none", color = "none")
+# background
++ theme_minimal()
+# 2010 watermark
++ annotate("text", x=6400, y=40, label="2010", size=130, color = "gainsboro", alpha=0.5, ha="center", va="center")
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
+
+4.  A box plot could be used to compare income and life expectancy across the four regions. This could be helpful to draw more generalized, regional comparisons, however it lacks detail at the individual country level.
+
+```{python}
+#| label: Task 1 plot 2
+
+(ggplot(dfQ1,
+aes(
+    x = "income",
+    y = "life_exp",
+    fill = "four_regions"
+))
+# boxes
++ geom_boxplot()
++ scale_fill_manual(values=custom_colors)
+# axes and legends
++ scale_x_log10(breaks = [500, 1000, 2000, 4000, 8000, 16000, 32000, 64000])
++ scale_y_continuous(limits=(10,90), breaks = range(10,91,10))
++ labs(x= "Income", y = "Life expectancy", fill = "Four regions")
+# background
++ theme_minimal()
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
+
+# Task 2
+
+1.  The aesthetics are x = exports, y = imports, size = energy, color = four_regions, and fill = four_regions.
+
+2.  
+```{python}
+#| label: Task 2 set up
+#| code-fold: false
+
+# load data
+dfQ2 = pd.read_csv('q2data.csv')
+
+# variable corrections
+#    define function
+def float_k(x):
+    if type(x) == str and 'k' in x.lower():
+        return float(x.replace('k', ''))*1000
+    elif type(x) == float:
+        return 0
+    return float(x)
+
+#    apply function
+dfQ2['energy'] = dfQ2['energy'].apply(float_k)
+
+# remove NaN from regions
+dfQ2 = dfQ2.dropna(axis=0, subset=['four_regions'])
+
+```
+
+3. 
+```{python}
+#| label: Task 2 plot 1
+
+(ggplot(dfQ2,
+aes(
+    x = "exports",
+    y = "imports",
+    size = "energy",
+    color = "four_regions",
+    fill = "four_regions"
+))
+# bubbles
++ geom_point()
++ scale_color_manual(values = custom_outline)
++ scale_fill_manual(values = custom_colors)
++ scale_size_continuous(range=(1,20))
+# axes and legends
++ scale_x_continuous(limits=(0,240), breaks = list(range(20,221,20)))
++ scale_y_continuous(limits=(0,450), breaks = list(range(50,401,50)))
++ labs(x= "Exports (\%\ of GDP)", y = "Imports (\%\ of GDP)", fill = "Four regions")
++ guides(size = "none", color = "none")
+# background
++ theme_minimal()
+# 1997 watermark
++ annotate("text", x=120, y=225, label="1997", size=130, color = "gainsboro", alpha=0.5, ha="center", va="center")
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
+
+4. A bar chart could be used to show the imports and exports across the four regions. To get imports and exports in the same graph, the dataframe would have to be significantly adjusted from how it is now, so I made two separate graphs this time. Like in task 1, this graph could be helpful to show more generalized, regional comparisons, however it lacks detail at the individual country level.  
+
+```{python}
+#| label: Task 2 plot 2
+
+# bar chart - exports
+(ggplot(dfQ2,
+aes(
+    x = "four_regions",
+    y = "exports",
+    fill = "four_regions"
+))
+# bars
++ geom_col()
++ scale_fill_manual(values = ['darkturquoise', 'lawngreen', 'tomato', 'yellow'])
+# axes and legends
++ scale_y_continuous(limits=(0,50))
++ labs(title = 'Global exports by region', x= "Regions", y = "Exports (\%\ of GDP)", fill = "Four regions")
+# background
++ theme_minimal()
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
+
+```{python}
+#| label: Task 2 plot 3
+
+# bar chart - imports
+(ggplot(dfQ2,
+aes(
+    x = "four_regions",
+    y = "imports",
+    fill = "four_regions"
+))
+# bars
++ geom_col()
++ scale_fill_manual(values = ['darkturquoise', 'lawngreen', 'tomato', 'yellow'])
+# axes and legends
++ scale_y_continuous(limits=(0,50))
++ labs(title = 'Global imports by region', x= "Regions", y = "Imports (\%\ of GDP)", fill = "Four regions")
+# background
++ theme_minimal()
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
+
+# Task 3
+
+1.  The aesthetics are x = Individuals using the internet, y = GDP/capita, size = income, color = four_regions, and fill = four_regions.
+
+2.  
+```{python}
+#| label: Task 3 set up
+#| code-fold: false
+
+# load data
+dfQ3 = pd.read_csv('q3data.csv')
+
+# remove NaN from regions
+dfQ3 = dfQ3.dropna(axis=0, subset=['four_regions'])
+
+```
+
+3. 
+```{python}
+#| label: Task 3 plot 1
+
+(ggplot(dfQ3,
+aes(
+    x = "internet_users",
+    y = "gdp",
+    size = "income",
+    color = "four_regions",
+    fill = "four_regions"
+))
+# bubbles
++ geom_point()
++ scale_color_manual(values = custom_outline)
++ scale_fill_manual(values = custom_colors)
++ scale_size_continuous(range=(1,20))
+# axes and legends
++ scale_x_continuous(limits=(0,100), breaks = list(range(0,91,10)))
++ scale_y_log10(breaks = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])
++ labs(x= "Individuals using the Internet", y = "GDP/capita", fill = "Four regions")
++ guides(size = "none", color = "none")
+# background
++ theme_minimal()
+# 2001 watermark
++ annotate("text", x=50, y=5000, label="2001", size=130, color = "gainsboro", alpha=0.5, ha="center", va="center")
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
+
+4. A density chart could be used to show the levels of GDP and internet users across the four regions. Again, this graph could be helpful to show more generalized, regional comparisons, however it lacks detail at the individual country level and the ability to convey multiple continuous variables simultaneously, like the bubble chart can.
+
+```{python}
+#| label: Task 3 plot 2
+
+(ggplot(dfQ3,
+aes(
+    x = "internet_users",
+    fill = "four_regions"
+))
+# density
++ geom_density(alpha = 0.5)
++ scale_fill_manual(values = custom_colors)
+# axes and legends
++ scale_x_log10()
++ labs(title = "Internet users by region", x= "Individuals using the Internet", fill = "Four regions")
+# background
++ theme_minimal()
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
+
+```{python}
+#| label: Task 3 plot 3
+
+(ggplot(dfQ3,
+aes(
+    x = "gdp",
+    fill = "four_regions"
+))
+# density
++ geom_density(alpha = 0.5)
++ scale_fill_manual(values = custom_colors)
+# axes and legends
++ scale_x_log10()
++ labs(title = "GDP by region", x= "GDP", fill = "Four regions")
+# background
++ theme_minimal()
+# set size
++theme(figure_size=(9, 4))
+)
+
+```
