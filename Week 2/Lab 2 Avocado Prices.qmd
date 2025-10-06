@@ -290,7 +290,7 @@ aes(
 + geom_point(size=5)
 + scale_fill_brewer(type = 'qual', palette='Set3')
 # labels
-+ labs(x= "Median Housing Price", y = "Average Avocado Price", fill = "City")
++ labs(title = "Median Housing Price by Average Avocado Price in California, 2015-2020", x= "Median Housing Price", y = "Average Avocado Price", fill = "City")
 # background
 + theme_minimal()
 )
