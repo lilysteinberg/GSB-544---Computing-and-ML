@@ -91,7 +91,7 @@ avocado_clean_q3 = avocado_clean[(avocado_clean["major_geographic_region"] != "N
 
 # sorting based on major geographic region and number of small/med sold + small_bags
 avocado_clean_q3["total_small_sold"] = avocado_clean_q3["small/med sold"] + avocado_clean_q3["small_bags"]
-avocado_clean_q3[["major_geographic_region", "total_small_sold"]].groupby("major_geographic_region").sum().sort_values("total_small_sold", ascending = True)
+avocado_clean_q3[["major_geographic_region", "total_small_sold"]].groupby("major_geographic_region").sum().sort_values("total_small_sold", ascending = False)
 ```
 
 4. The most avocados are sold in May.

@@ -2414,10 +2414,10 @@ vertical-align: -.125em;
 <span id="cb3-5"><a href="#cb3-5"></a></span>
 <span id="cb3-6"><a href="#cb3-6"></a><span class="co"># sorting based on major geographic region and number of small/med sold + small_bags</span></span>
 <span id="cb3-7"><a href="#cb3-7"></a>avocado_clean_q3[<span class="st">&quot;total_small_sold&quot;</span>] <span class="op">=</span> avocado_clean_q3[<span class="st">&quot;small/med sold&quot;</span>] <span class="op">+</span> avocado_clean_q3[<span class="st">&quot;small_bags&quot;</span>]</span>
-<span id="cb3-8"><a href="#cb3-8"></a>avocado_clean_q3[[<span class="st">&quot;major_geographic_region&quot;</span>, <span class="st">&quot;total_small_sold&quot;</span>]].groupby(<span class="st">&quot;major_geographic_region&quot;</span>).<span class="bu">sum</span>().sort_values(<span class="st">&quot;total_small_sold&quot;</span>, ascending <span class="op">=</span> <span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb3-8"><a href="#cb3-8"></a>avocado_clean_q3[[<span class="st">&quot;major_geographic_region&quot;</span>, <span class="st">&quot;total_small_sold&quot;</span>]].groupby(<span class="st">&quot;major_geographic_region&quot;</span>).<span class="bu">sum</span>().sort_values(<span class="st">&quot;total_small_sold&quot;</span>, ascending <span class="op">=</span> <span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-stderr">
-<pre><code>C:\Users\lilyg\AppData\Local\Temp\ipykernel_3364\2403722407.py:7: SettingWithCopyWarning: 
+<pre><code>C:\Users\lilyg\AppData\Local\Temp\ipykernel_20340\1467808423.py:7: SettingWithCopyWarning: 
 A value is trying to be set on a copy of a slice from a DataFrame.
 Try using .loc[row_indexer,col_indexer] = value instead
 
@@ -2440,36 +2440,36 @@ See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stab
 </thead>
 <tbody>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">Plains</td>
-<td>5.183596e+07</td>
+<td data-quarto-table-cell-role="th">South_Central</td>
+<td>1.093524e+09</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">Midsouth</td>
-<td>7.913402e+07</td>
-</tr>
-<tr class="odd">
-<td data-quarto-table-cell-role="th">Great_Lakes</td>
-<td>2.669160e+08</td>
-</tr>
-<tr class="even">
-<td data-quarto-table-cell-role="th">West</td>
-<td>4.066469e+08</td>
-</tr>
-<tr class="odd">
-<td data-quarto-table-cell-role="th">Northeast</td>
-<td>5.327469e+08</td>
-</tr>
-<tr class="even">
-<td data-quarto-table-cell-role="th">Southeast</td>
-<td>8.820215e+08</td>
-</tr>
-<tr class="odd">
 <td data-quarto-table-cell-role="th">California</td>
 <td>9.794675e+08</td>
 </tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">Southeast</td>
+<td>8.820215e+08</td>
+</tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">South_Central</td>
-<td>1.093524e+09</td>
+<td data-quarto-table-cell-role="th">Northeast</td>
+<td>5.327469e+08</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">West</td>
+<td>4.066469e+08</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">Great_Lakes</td>
+<td>2.669160e+08</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">Midsouth</td>
+<td>7.913402e+07</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">Plains</td>
+<td>5.183596e+07</td>
 </tr>
 </tbody>
 </table>
@@ -2721,7 +2721,7 @@ See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stab
 <section id="using-outside-data" class="level1">
 <h1>Using Outside Data</h1>
 <p>There doesn’t seem to be a strong relationship between housing prices and avocado prices, as seen in the plot. This suggests that we probably shouldn’t claim a causal relationship between the housing market and avocado prices (and the Millennial willingness to pay them).</p>
-<div id="78dd7535" class="cell" data-execution_count="9">
+<div id="9e63ccfd" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1"></a><span class="co"># outside data, values reflect median price</span></span>
@@ -2775,12 +2775,12 @@ See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stab
 <span id="cb10-49"><a href="#cb10-49"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-stderr">
-<pre><code>C:\Users\lilyg\AppData\Local\Temp\ipykernel_3364\1954120545.py:9: SettingWithCopyWarning: 
+<pre><code>C:\Users\lilyg\AppData\Local\Temp\ipykernel_20340\1954120545.py:9: SettingWithCopyWarning: 
 A value is trying to be set on a copy of a slice from a DataFrame.
 Try using .loc[row_indexer,col_indexer] = value instead
 
 See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
-C:\Users\lilyg\AppData\Local\Temp\ipykernel_3364\1954120545.py:10: SettingWithCopyWarning: 
+C:\Users\lilyg\AppData\Local\Temp\ipykernel_20340\1954120545.py:10: SettingWithCopyWarning: 
 A value is trying to be set on a copy of a slice from a DataFrame.
 Try using .loc[row_indexer,col_indexer] = value instead
 
