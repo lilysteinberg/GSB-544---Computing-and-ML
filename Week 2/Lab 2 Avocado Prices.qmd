@@ -1,0 +1,298 @@
+---
+title: "Lab 2: Avocado Prices"
+Author: Lily
+format:
+    html:
+        embed-resources: true
+        code-line-numbers: true
+        code-fold: true
+---
+**GitHub Repository**: <https://github.com/lilysteinberg/GSB-544---Computing-and-ML/tree/main/Week%202>
+
+# Data Set-up
+0. 
+``` {python}
+#| label: Data Set-up
+#| code-fold: false
+
+# packages
+import pandas as pd
+from plotnine import *
+
+# data
+avo = pd.read_csv("C:/Users/lilyg/OneDrive/Documents/MSBA/GSB 544 - Computing and ML/Week 2/avocado-updated-2020.csv")
+avo.describe()
+
+```
+
+1. The data set contains information on date, average price of a single avocado, type (conventional or organic), year data was collected, city or region of observation, total volume measured in bags + PLU, and the avocados sold with PLU 4046 (small/medium), PLU 4225 (large), or PLU 4770 (extra large).  
+
+2. I have made the PLU column headings more intuitive and added a column to sort the cities into 8 major geographic regions.
+```{python}
+#| label: Data Wrangling
+
+### set up avocado_clean copy
+avocado_clean = avo
+
+### make PLU codes more intuitive as column headings
+avocado_clean = avocado_clean.rename(columns = {'4046' : 'small/med sold', '4225' : 'large sold', '4770' : 'extra large sold'})
+
+### add column for major geographic region based on city
+# Setting a default for all values
+avocado_clean['major_geographic_region'] = "NaN"
+
+# Sorting for California
+California = ["Los Angeles", "San Diego", "Sacramento", "San Francisco"]
+avocado_clean.loc[avocado_clean["geography"].isin(California), "major_geographic_region"] = "California"
+
+# Sorting for Great Lakes
+Great_Lakes = ["Chicago", "Cincinnati/Daytona", "Columbus", "Detroit", "Grand Rapids", "Indianapolis"]
+avocado_clean.loc[avocado_clean["geography"].isin(Great_Lakes), "major_geographic_region"] = "Great_Lakes"
+
+# Sorting for Midsouth
+Midsouth = ["Louisville", "Nashville"]
+avocado_clean.loc[avocado_clean["geography"].isin(Midsouth), "major_geographic_region"] = "Midsouth"
+
+# Sorting for Northeast
+Northeast = ["Albany", "Baltimore/Washington", "Boston", "Buffalo/Rochester", "Harrisburg/Scranton", "Hartford/Springfield", "New York", "Northern New England", "Philadelphia", "Pittsburgh", "Syracuse"]
+avocado_clean.loc[avocado_clean["geography"].isin(Northeast), "major_geographic_region"] = "Northeast"
+# I am working under the assumption that New York refers to the city
+
+# Sorting for Plains
+Plains = ["St. Louis"]
+avocado_clean.loc[avocado_clean["geography"].isin(Plains), "major_geographic_region"] = "Plains"
+
+# Sorting for Southeast
+Southeast = ["Atlanta", "Charlotte", "Jacksonville", "Miami/Ft. Lauderdale", "Orlando", "Raleigh/Greensboro", "Richmond/Norfolk", "Roanoke", "South Carolina", "Tampa"]
+avocado_clean.loc[avocado_clean["geography"].isin(Southeast), "major_geographic_region"] = "Southeast"
+# I am working under the assumption that none of these cities overlap with South Carolina
+
+# Sorting for South Central
+South_Central = ["Dallas/Ft. Worth", "Houston", "New Orleans/Mobile",  "Phoenix/Tucson", "West Tex/New Mexico"]
+avocado_clean.loc[avocado_clean["geography"].isin(South_Central), "major_geographic_region"] = "South_Central"
+# I am working under the assumption that the values in Dallas/Ft. Worth and Houston do not overlap with West Tex/New Mexico
+
+# Sorting for West
+West = ["Boise", "Denver", "Las Vegas", "Portland", "Seattle", "Spokane"]
+avocado_clean.loc[avocado_clean["geography"].isin(West), "major_geographic_region"] = "West"
+
+```
+
+# Exercises
+
+3. South Central sold the most organic, small Hass avocados in 2017.
+```{python}
+#| label: Exercise 3
+
+# filtering down based on 2017 and organic
+avocado_clean_q3 = avocado_clean[(avocado_clean["year"] == 2017) & (avocado_clean["type"] == "organic")]
+# removing observations with "NaN" as the major geographic region based on city to avoid duplications
+avocado_clean_q3 = avocado_clean[(avocado_clean["major_geographic_region"] != "NaN")]
+
+# sorting based on major geographic region and number of small/med sold + small_bags
+avocado_clean_q3["total_small_sold"] = avocado_clean_q3["small/med sold"] + avocado_clean_q3["small_bags"]
+avocado_clean_q3[["major_geographic_region", "total_small_sold"]].groupby("major_geographic_region").sum().sort_values("total_small_sold", ascending = True)
+```
+
+4. The most avocados are sold in May.
+```{python}
+#| label: Exercise 4
+
+### add columns for month, day, and year based on data in "date"
+avocado_clean['month'] = pd.DatetimeIndex(avo['date']).month
+avocado_clean['day'] = pd.DatetimeIndex(avo['date']).day
+avocado_clean['year'] = pd.DatetimeIndex(avo['date']).year
+
+# removing observations with "NaN" as the major geographic region based on city to avoid duplications
+avocado_clean_q4 = avocado_clean[(avocado_clean["major_geographic_region"] != "NaN")]
+
+avocado_clean_q4[["month", "total_volume"]].groupby("month").sum().sort_values("total_volume", ascending = False)
+
+```
+
+5.
+```{python}
+#| label: Exercise 5
+
+# removing observations with "NaN" as the major geographic region based on city to avoid duplications
+avocado_clean_q5 = avocado_clean[(avocado_clean["major_geographic_region"] != "NaN")]
+
+# removing observations that are not at the city-level
+avocado_clean_q5 = avocado_clean[(avocado_clean["geography"] != "Total U.S.") & (avocado_clean["geography"] != "California") & (avocado_clean["geography"] != "Great Lakes") & (avocado_clean["geography"] != "Midsouth") & (avocado_clean["geography"] != "Northeast") & (avocado_clean["geography"] != "Plains") & (avocado_clean["geography"] != "Southeast") & (avocado_clean["geography"] != "South Central") & (avocado_clean["geography"] != "West")]
+
+# saving the top cities with highest average total volume
+top_cities = (
+    avocado_clean_q5[["geography", "total_volume"]]
+    .groupby("geography")
+    .mean()
+    .sort_values("total_volume", ascending = False)
+    .head(5)
+    .reset_index()
+)
+
+# filtering original data to the top cities
+avocado_clean_q5 = avocado_clean_q5[avocado_clean_q5["geography"].isin(top_cities["geography"])]
+
+### Plot
+(ggplot(avocado_clean_q5,
+aes(
+    x = "geography",
+    y = "total_volume",
+    fill = "geography"
+))
+# boxes
++ geom_boxplot()
++ scale_fill_brewer(type = 'qual', palette='Set3')
+# axes and legends
++ labs(title = "Volume of Avocados Sold Across Top 5 Selling Cities", x= "City", y = "Total Volume Sold", fill = "Region")
+# background
++ theme_minimal()
+)
+
+```
+
+# Pivoting
+
+6.
+```{python}
+#| label: Exercise 6
+#| code-fold: false
+
+# Limiting to CA cities observations
+avocado_clean_q6 = avocado_clean[(avocado_clean["geography"] == "Los Angeles") | (avocado_clean["geography"] == "San Diego") | (avocado_clean["geography"] == "Sacramento") | (avocado_clean["geography"] == "San Francisco") ]
+
+```
+
+7. The price difference is greatest in San Francisco, where the price difference is 0.72 dollars, on average.
+```{python}
+#| label: Exercise 7
+
+### adjusting the dataframe
+# creating side-by-side price columns
+avocado_price_diff_pivot = (
+    avocado_clean_q6[["geography", "date", "type", "average_price"]]
+    .pivot(index=["geography", "date"], columns = "type", values = "average_price")
+    .reset_index()
+)
+
+# transforming to find price difference
+avocado_price_diff_pivot["price_difference"] = avocado_price_diff_pivot["organic"] - avocado_price_diff_pivot["conventional"]
+
+# sorting to see top averages by geography
+price_diff_graph = (
+    avocado_price_diff_pivot[["geography","price_difference"]]
+    .groupby("geography")
+    .mean()
+    .sort_values("price_difference", ascending = False)
+    .reset_index()
+)
+
+### Plot
+(ggplot(price_diff_graph,
+aes(
+    x = "geography",
+    y = "price_difference",
+    fill = "geography"
+))
+# bars
++ geom_col()
++ scale_fill_brewer(type = 'qual', palette='Set3')
+# axes and legends
++ labs(title = "Price Difference Between Organic vs Conventional Avocados Across CA", x= "City", y = "Price Difference (Organic - Conventional)", fill = "City")
+# background
++ theme_minimal()
+)
+```
+
+8.
+```{python}
+#| label: Exercise 8
+
+### Creating a new dataframe
+# math to get proportions
+small = avocado_clean_q6["small/med sold"] + avocado_clean_q6["small_bags"] 
+large = avocado_clean_q6["large sold"] + avocado_clean_q6["large_bags"] 
+xlarge = avocado_clean_q6["extra large sold"] + avocado_clean_q6["xlarge_bags"] 
+# passing along existing columns
+geography = avocado_clean_q6["geography"]
+avo_type = avocado_clean_q6["type"]
+# declaring dataframe
+avocado_CA_sales = pd.DataFrame({"Geography": geography, "Small": small, "Large": large, "XLarge": xlarge, "Type": avo_type})
+# melting sizes into Size column
+avocado_CA_sales_long_size = avocado_CA_sales.melt(id_vars=["Geography", "Type"], var_name="Size", value_name="Amount")
+# sorting
+avocado_CA_sales_graph = avocado_CA_sales_long_size.groupby(["Geography", "Type", "Size"]).sum().reset_index()
+avocado_CA_sales_graph
+
+### Plot
+(ggplot(avocado_CA_sales_graph,
+aes(
+  x = "Geography",
+  y = "Amount",
+  fill = "Size"
+))
++ geom_bar(stat="identity", position = "fill")
++ facet_wrap("Type")
++ labs(title= "Proportion of Average Hass Avocado Sales by Size", x = "Region of California", y = "Proporition", fill = "Size")
++ theme_minimal()
++ scale_fill_brewer(type = 'qual', palette='Set3')
++ theme(axis_text_x=element_text(angle=45, hjust=1))
+)
+```
+
+# Using Outside Data
+
+There doesn't seem to be a strong relationship between housing prices and avocado prices, as seen in the plot. This suggests that we probably shouldn't claim a causal relationship between the housing market and avocado prices (and the Millennial willingness to pay them).
+```{python}
+
+# outside data, values reflect median price
+housing = pd.read_excel("C:/Users/lilyg/OneDrive/Documents/MSBA/GSB 544 - Computing and ML/Week 2/MedianPricesofExistingDetachedHomesHistoricalData.xlsx")
+
+### cleaning
+# dropping unnecessary columns
+columns_to_keep = ["Mon-Yr", "Los Angeles", "Sacramento", "San Diego", "San Francisco"]
+housing_clean = housing[columns_to_keep]
+# add columns for month and year based on data in "Mon-Yr"
+housing_clean['month'] = pd.DatetimeIndex(housing_clean['Mon-Yr']).month
+housing_clean['year'] = pd.DatetimeIndex(housing_clean['Mon-Yr']).year
+# exclude dates outside timeframe
+housing_clean = housing_clean[(housing_clean["year"] > 2014) & (housing_clean["year"] < 2021)]
+# melting housing df to match avocado df
+housing_clean_long = housing_clean.melt(
+    id_vars=["year", "month"],
+    value_vars=["Los Angeles", "Sacramento", "San Diego", "San Francisco"],
+    var_name="Geography",
+    value_name="Median Price"
+)
+
+# streamlining avocado df
+columns_to_keep_avo = ["geography", "month", "year", "average_price"]
+avocado_clean_q7 = avocado_clean_q6[columns_to_keep_avo]
+
+### merging
+avo_housing = avocado_clean_q7.merge(housing_clean_long, on = ["month", "year"], suffixes=("_avocado", "_housing"))
+
+# simplifying for visualization -- take mean values of each year
+avo_housing_yearly = (
+    avo_housing.groupby(["geography", "year"], as_index=False)
+      [["average_price", "Median Price"]]
+      .mean()
+)
+
+### Plot
+(ggplot(avo_housing_yearly,
+aes(
+    x = "Median Price",
+    y = "average_price",
+    fill = "geography"
+))
+# bubbles
++ geom_point(size=5)
++ scale_fill_brewer(type = 'qual', palette='Set3')
+# labels
++ labs(x= "Median Housing Price", y = "Average Avocado Price", fill = "City")
+# background
++ theme_minimal()
+)
+
+```
