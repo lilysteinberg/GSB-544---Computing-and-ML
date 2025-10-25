@@ -1,0 +1,393 @@
+---
+title: "Lab 4: Data is Delicious"
+author: Lily
+format:
+    html:
+        embed-resources: true
+        code-line-numbers: true
+---
+**GitHub Repository**: <https://github.com/lilysteinberg/GSB-544---Computing-and-ML/tree/main/Week%204>
+
+```{python}
+#| label: Set Up Libraries
+
+# Libraries
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from sys import exit
+import re
+from plotnine import *
+
+```
+
+# 1. Data from unstructured websites
+
+```{python}
+#| label: Set Up Beautiful Soup Parse
+
+# Set up webpage for Beautiful Soup scrape
+URL = "https://tastesbetterfromscratch.com/meal-plan-199/"
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+response = requests.get(URL, headers=HEADERS)
+soup = BeautifulSoup(response.text, "html.parser")
+
+```
+
+The hidden code below works out how to extract the data for Monday specifically, before creating the loop for all the days included in the mealplan. 
+```{python}
+#| label: Extracting Data from HTML for Monday
+#| code-fold: true
+
+# find info for Monday
+day = soup.find_all("p", {"class": "has-text-align-left"})[1]
+
+# find Monday's name
+day.find("strong").text.replace('\xa0', ' ').replace('\xad', '').replace(':', '').strip()
+
+# find Monday's name of recipe
+day.find("a").text
+
+# find Monday's link to recipe
+day.find("a", href=True).get("href")
+
+# find price of recipe - attempt 1
+## only works for Monday because untagged dollar text moves position in html between days
+day.find(string=True, recursive=False).strip()
+
+# find price of recipe - attempt 2
+## applicable to all days
+re.search(r"\$\d+\.\d{2}", day.get_text(" ", strip=True)).group()
+
+```
+
+```{python}
+#| label: Extracting Data from HTML for the entire week
+
+# initialize an empty list
+rows = []
+
+# iterate over all rows
+for day in soup.find_all("p", {"class": "has-text-align-left"})[0:]:
+
+    # Find the the name of the day
+    name_tag = day.find("strong")
+    name = name_tag.text.replace('\xa0', ' ').replace('\xad', '').replace(':', '').strip()
+
+    # Find the name of the recipe
+    recipe_tag = day.find("a")
+    recipe = recipe_tag.text
+
+    # Find the link to the recipe
+    link_tag = day.find("a", href=True)
+    link = link_tag.get("href")
+
+    # Find the price of the recipe
+    price_tag = re.search(r"\$\d+\.\d{2}", day.get_text(" ", strip=True))
+    price = price_tag.group()
+
+    # Append this data.
+    rows.append({
+        "Day of the Week": name,
+        "Name of Recipe": recipe,
+        "Link to Recipe": link,
+        "Price of Recipe": price
+    })
+
+```
+
+```{python}
+#| label: Sorting data into a pandas dataframe
+
+# sort data into pandas dataframe
+pd.DataFrame(rows)
+
+```
+
+# 2. Data from an API
+
+```{python}
+#| label: Setting up the API
+
+# make variable for whatever "Monday" recipe could be
+day_search_total = soup.find_all("p", {"class": "has-text-align-left"})[0]
+day_search_specific = day_search_total.find("a").text
+
+# set up API connection
+url = "https://tasty.p.rapidapi.com/recipes/list"
+querystring = {"from":"0","size":"100","q": day_search_specific}
+headers = {
+    "X-RapidAPI-Key": "bc5ff90f5dmsh5fc6a8ea4404132p14a19djsn36d29add3d45",
+    "X-RapidAPI-Host": "tasty.p.rapidapi.com"
+}
+
+# scrape
+response = requests.get(url, headers=headers, params=querystring)
+
+# put results into dataframe (cleaned out unnecessary columns)
+dirtyrice_recipes = pd.json_normalize(response.json(), "results")
+dirtyrice_recipes = dirtyrice_recipes[['name', 'num_servings', 'total_time_minutes', 'video_url', 'user_ratings.score']]
+dirtyrice_recipes
+
+```
+
+# 3. Automate it
+
+```{python}
+#| label: Making function
+def get_mealplan_data (num):
+  """
+  Provides recipes matching each day of the input mealplan.
+  
+  Parameters
+  ----------
+  num: int
+    A number between 100-210, corresponding to a weekly mealplan from Tastes Better from Scratch. 
+    
+  Return
+  ------
+  dataframe
+    A dataframe containing 5 recipe options for each of the days in the specified mealplan.
+  """
+
+  ### Step 0: validate input
+  if not num in range(100,211):
+    exit("Please provide a number input between 100 and 210.")
+  else:
+    num = num
+
+  ### Step 1: take input of 100-210 to find weekly meal plan
+  URL = "https://tastesbetterfromscratch.com/meal-plan-"
+  URL = URL + str(num) + "/"
+  HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+  response = requests.get(URL, headers=HEADERS)
+  soup = BeautifulSoup(response.text, "html.parser")
+
+  ### Step 2: scrape data from mealplan website
+
+  # initialize an empty list
+  rows = []
+
+  # make the loop
+  for day in soup.find_all("p", {"class": "has-text-align-left"})[0:]:
+
+    # Find the the name of the day
+    name_tag = day.find("strong")
+    name = name_tag.text.replace('\xa0', ' ').replace('\xad', '').replace(':', '').strip()
+
+    # Find the name of the recipe
+    recipe_tag = day.find("a")
+    recipe = recipe_tag.text
+
+    # Find the link to the recipe
+    link_tag = day.find("a", href=True)
+    link = link_tag.get("href")
+
+    # Find the price of the recipe
+    price_tag = re.search(r"\$\d+\.\d{2}", day.get_text(" ", strip=True))
+    price = price_tag.group()
+
+    # Append this data.
+    rows.append({
+        "Day of the Week": name,
+        "Name of Recipe": recipe,
+        "Link to Recipe": link,
+        "Price of Recipe": price
+    })
+
+  # sort data into pandas dataframe
+  mealplan = pd.DataFrame(rows)
+  
+  ### Step 3: Query Tasty API for matching recipes
+
+  # initialize an empty dataframe
+  all_recipes = pd.DataFrame()
+
+  # make the loop
+  for i in mealplan.index:
+
+    # set up API connection
+    url_API = "https://tasty.p.rapidapi.com/recipes/list"
+    querystring = {"from":"0","size":"100","q": mealplan.loc[i,"Name of Recipe"]}
+    headers_API = {
+        "X-RapidAPI-Key": "bc5ff90f5dmsh5fc6a8ea4404132p14a19djsn36d29add3d45",
+        "X-RapidAPI-Host": "tasty.p.rapidapi.com"
+    }
+
+    # scrape
+    response = requests.get(url_API, headers=headers_API, params=querystring)
+
+    # put results into dataframe (cleaned out unnecessary columns)
+    ## set up desired columns
+    desired_cols = [
+    'name', 'num_servings', 'total_time_minutes', 'video_url',
+    'user_ratings.score', 'nutrition.calories', 'nutrition.carbohydrates',
+    'nutrition.fat', 'nutrition.fiber', 'nutrition.protein', 'nutrition.sugar'
+    ]
+    
+    # normalize and reindex
+    day_recipes = pd.json_normalize(response.json(), "results")
+    day_recipes = day_recipes.reindex(columns=desired_cols)
+
+    # add column to help with eventual join with mealplan dataframe
+    day_recipes['Name of Recipe'] = mealplan.loc[i,"Name of Recipe"]
+    # join day_recipes to all_recipes df
+    all_recipes = pd.concat([all_recipes, day_recipes])
+
+  # Step 4: output a single dataset with all the info
+  ## using left join in case Tasty does not have results for a mealplan day
+  big_df = mealplan.merge(all_recipes, on='Name of Recipe', how="left")
+
+  return big_df
+
+```
+
+Unit tests
+```{python}
+#| label: Unit tests -- get_mealplan_data (num)
+#| code-fold: true
+
+#get_mealplan_data (133)
+#get_mealplan_data (1)
+#get_mealplan_data ("a")
+#get_mealplan_data (True)
+
+```
+
+Test with provided code
+```{python}
+#| label: Test with provided code
+
+df = get_mealplan_data(202)
+df
+
+```
+
+# 4. Add a column with fuzzy matching
+
+I made this part into a function because later, to prepare the data for graphing, I had trouble keeping the original 'Vegetarian?' column through the .groupby() function and didn't want to repeat the code when I re-added the column.
+```{python}
+#| label: Fuzzy matching for vegetrian options -- building function
+
+def vegetarian (df):
+  '''
+  Adds a column that determines if the name of a recipe from the weekly mealplan is vegatrian or not.
+
+  Parameter
+  -------
+  df: dataframe
+    A dataframe containing a column called "Name of Recipe"
+  
+  Returns
+  -------
+  dataframe
+    The same dataframe as input, now with a column for vegetrain determination based on the name of the recipe
+  '''
+  
+  # validate df input
+  if not 'Name of Recipe' in df.columns:
+    exit("Please input a valid dataframe")
+
+  # make list of meat words
+  meat = ["beef", "chicken", "fish", "salmon", "tuna", "lamb", "pork", "veal", "seafood", "shrimp", "turkey", "meat", "meatball"]
+  contains_meat = re.compile(r'\b(' + '|'.join(meat) + r')\b', flags=re.IGNORECASE)
+
+  # search df for meat words using if/else and bools to sort
+  ## added an 'N/A' result in case no Tasty recipe present
+  df["Vegetarian?"] = df["Name of Recipe"].apply(lambda x: 'N/A' if pd.isna(x) else ('No' if contains_meat.search(x) else 'Yes'))
+  return df 
+
+```
+
+Unit test
+```{python}
+#| label: Unit tests -- vegetarian (df)
+#| code-fold: true
+
+#data = {'col1': [1, 2, 3], 'col2': ['A', 'B', 'C']}
+# abc = pd.DataFrame(data)
+#vegetarian(abc)
+
+```
+
+Using function for real
+```{python}
+#| label: Fuzzy matching for vegetrian options -- using function
+
+# calling function
+df = vegetarian(df)
+df
+
+```
+
+# 5. Analyze
+
+This first graph compares the average calories of each day's recipes per Mealplan 202. The vegetarian days are denoted with the green columns.
+```{python}
+#| label: Visualization of Mealplan 202 -- simple chart
+
+# configure data for visualization
+## finding mean of nutrition values per week day to find daily patterns, not individual recipe results
+df_graph = df[["Day of the Week", "Name of Recipe", 'nutrition.calories', 'nutrition.carbohydrates', 'nutrition.fat', 'nutrition.fiber', 'nutrition.protein', 'nutrition.sugar']].groupby(["Day of the Week", "Name of Recipe"]).mean().reset_index()
+vegetarian(df_graph)
+df_graph
+
+# set up custom colors for columns
+custom_colors = {
+    'Yes': 'forestgreen', 
+    'No': 'rebeccapurple'
+    }
+
+# column chart
+(ggplot(df_graph,
+aes(
+    x = "Day of the Week",
+    y = "nutrition.calories",
+    fill = "Vegetarian?"
+))
+# columns
++ geom_col()
++ scale_fill_manual(values = custom_colors)
+# axes and legends
++ labs(title= "Average calories for weekly mealplan recipes", x= "Days of the Week", y = "Calories", fill = "Vegetarian?")
+# background
++ theme_minimal()
+)
+
+```
+
+This second graph compares the average calories, carbs, fat, fiber, protein, and sugar of each day's recipes per Mealplan 202. The vegetarian days are denoted with the stars ("*") after the day's name along the x axis. 
+```{python}
+#| label: Visualization of Mealplan 202 -- detailed chart
+
+# configure data for visualization
+## finding mean of nutrition values per week day to find daily patterns, not individual recipe results
+df_graph_fancy = df[["Day of the Week", "Name of Recipe", 'nutrition.calories', 'nutrition.carbohydrates', 'nutrition.fat', 'nutrition.fiber', 'nutrition.protein', 'nutrition.sugar']].groupby(["Day of the Week", "Name of Recipe"]).mean().reset_index()
+
+## wide to long conversion to map to bar chart
+df_graph_fancy = pd.melt(df_graph_fancy, id_vars=["Day of the Week", "Name of Recipe"], value_vars=['nutrition.calories', 'nutrition.carbohydrates','nutrition.fat', 'nutrition.fiber', 'nutrition.protein', 'nutrition.sugar'], var_name = "nutrition", value_name = "value")
+
+# adding vegetarian info
+df_graph_fancy = vegetarian(df_graph_fancy)
+## making mark for vegetarian days
+df_graph_fancy["Day of the Week"] = df_graph_fancy.apply(lambda x: x["Day of the Week"] + "*" if x["Vegetarian?"] == "Yes" else x["Day of the Week"], axis=1)
+df_graph_fancy
+
+# bar chart
+(ggplot(df_graph_fancy,
+aes(
+    x = "Day of the Week",
+    y = "value",
+    fill = "nutrition"
+))
+# bars
++ geom_bar(stat = "identity", position = "dodge")
++ scale_fill_brewer(type = 'qual', palette='Set2')
+# axes and legends
++ labs(title= "Nutrition information for weekly mealplan", x= "Days of the Week", y = "Amount", fill = "Nutrition Component")
+# background
++ theme_minimal()
+)
+
+```
+
