@@ -631,7 +631,7 @@ cross_validation(insurance, insurance_new, "charges", models)
 Based on each model's predictions using the new data, Model E performs the best.
 
 ```{python}
-#| label: Model-E-residuals-graph
+#| label: Model-E-predictions-graph
 #| code-fold: true
 
 # simplify df
@@ -645,7 +645,25 @@ long_plot = df_plot.melt(id_vars=["age", "bmi", "smoker_yes", "age:smoker", "bmi
             y = "amount",
             color = "charges")) 
 + geom_point()
-+ labs(title = "Residuals: Predicted vs. actual insurance charges according to Model E")
++ labs(title = "Predicted vs. actual insurance charges according to Model E")
++ theme_minimal()
+)
+
+```
+
+```{python}
+#| label: Model-E-residuals-graph
+#| code-fold: true
+
+# calculate and save residuals
+df_plot["residuals"] = df_plot["charges"] - df_plot["Model E_predict"]
+
+# plot
+(ggplot(df_plot,
+        aes(x = "age",
+            y = "residuals"))
++ geom_point()
++ labs(title = "Residuals of Model E")
 + theme_minimal()
 )
 
@@ -720,7 +738,7 @@ Finally, I wondered if the variable age might lead to a flattening threshold of 
 **Model M performed the best, with an MSE of 0.10839 and an R-squared value of 0.900049. Model M predicts log(charges) based on log(age), bmi, smoker status, sex, interaction of age and smoker, interaction of bmi and smoker, and interaction of age and sex.**
 
 ```{python}
-#| label: Model-M-residuals-graph
+#| label: Model-M-predictions-graph
 #| code-fold: true
 
 # simplify df
@@ -734,7 +752,25 @@ long_plot = df_plot.melt(id_vars=["log_age", "bmi", "smoker_yes", "sex_male", "a
             y = "amount",
             color = "log_charges")) 
 + geom_point()
-+ labs(title = "Residuals: Predicted vs. actual insurance charges according to Model M")
++ labs(title = "Predicted vs. actual insurance charges according to Model M")
++ theme_minimal()
+)
+
+```
+
+```{python}
+#| label: Model-M-residuals-graph
+#| code-fold: true
+
+# calculate and save residuals
+df_plot["residuals"] = df_plot["log_charges"] - df_plot["Model M_predict"]
+
+# plot
+(ggplot(df_plot,
+        aes(x = "log_age",
+            y = "residuals"))
++ geom_point()
++ labs(title = "Residuals of Model M")
 + theme_minimal()
 )
 
