@@ -1,0 +1,741 @@
+---
+title: "Lab 5: Insurance Costs"
+author: Lily
+format:
+    html:
+        embed-resources: true
+        code-line-numbers: true
+---
+
+**GitHub Repository**: <https://github.com/lilysteinberg/GSB-544---Computing-and-ML/tree/main/Week%205>
+
+# 1. Data Exploration
+
+**1. Read in the dataset and display some summaries of the data.**
+
+This hidden code loads in the necessary packages.
+
+```{python}
+#| label: packages
+#| code-fold: true
+
+# packages
+import pandas as pd
+import numpy as np
+from plotnine import *
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+
+```
+
+This hidden code imports the data.
+
+```{python}
+#| label: import-data
+#| code-fold: true
+
+# data
+insurance = pd.read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance_costs_1.csv?dl=1")
+
+```
+
+This code previews the data and shows a statsticial summary.
+
+```{python}
+#| label: data-summaries
+
+# preview columns and data
+#print(insurance.head())
+
+# statstical summary
+insurance.describe()
+
+```
+
+**2. Fix any concerns you have about the data.**
+
+```{python}
+#| label: checking-data
+
+# look for missing data and decide how to handle it
+insurance.isna().any() # all false, so no missing data
+
+# checking data types
+print(insurance.dtypes) # all numeric columns are apporpriatly numeric already
+
+# check for outliers
+## future plotting shows there are none that I want to omit
+
+```
+
+**3. Make up to three plots comparing the response variable (`charges`) to one of the predictor variables. Briefly describe each plot.**
+
+```{python}
+#| label: initial-plots-1
+#| code-fold: true
+
+(ggplot(insurance,
+        aes(x = "age",
+            y = "charges",
+            color = "sex")) 
++ geom_point()
++ labs(title = "Insurance charges across ages and sexes")
++ theme_minimal()
+)
+
+```
+
+This plot shows that insurance charges generally increase as age increases. There is a steady trendline for this at the bottom, with two tiers of less dense bands that follow this trend at higher average charges, as well.
+
+```{python}
+#| label: initial-plots-2
+#| code-fold: true
+
+# finding mean charges by region
+df_plot = insurance[["charges", "region"]].groupby("region").mean().reset_index()
+
+(ggplot(df_plot,
+        aes(x = "region",
+            y = "charges")) 
++ geom_col()
++ scale_y_continuous(breaks = range(0,15000,2000))
++ labs(title= "Average insurance charges across major regions")
++ theme_minimal()
+)
+```
+
+This plot shows that the southeast region has the largest average insurance charges, with northwest having the least. The overall range is approximately 11,000 to 14,000.
+
+# 2. Simple Linear Models
+
+**1. Construct a simple linear model to predict the insurance charges from the beneficiary’s age. Discuss the model fit, and interpret the coefficient estimates.**
+
+```{python}
+#| label: Model-1
+
+### fit the model
+model_1 = LinearRegression()
+model_1.fit(
+    X = insurance[["age"]],
+    y = insurance["charges"]
+)
+
+print("Intercept = ", model_1.intercept_)
+print("Coefficient = ", model_1.coef_)
+
+### plot
+# add prediction column
+insurance["charges_prediction"] = model_1.predict(insurance[["age"]])
+# wide to long
+long_plot = insurance.melt(insurance[["age"]], value_vars = ["charges", "charges_prediction"], var_name = "charges", value_name = "amount")
+
+(ggplot(long_plot,
+        aes(x = "age",
+            y = "amount",
+            color = "charges")) 
++ geom_point()
++ labs(title = "Predicted vs. actual insurance charges across ages")
++ theme_minimal()
+)
+
+```
+
+As seen in the graph, Model 1 generally follows the baseline positive trend seen with a majority of the data. The predictions are higher than the lowest, most common trendline, and lower than the second tier of insurance charges, and much below the third tier. The predictions do not overlap with nearly any actual datapoints. This does not feel like a good model fit.
+
+The model intercept occurs at 3611.76. This means that at age 0, a patient is predicted to have \$3,611.76 insurance charges, on average. While this may not always make the most economic sense, it grounds the model at an appropriate starting place.
+
+Model 1's coefficient associated with the age predictor variable is around 288.80, which means that as a patient grows a year older, the predicted insurance charges increase by \$288.80.
+
+**2. Make a model that also incorporates the variable sex. Report your results.**
+
+```{python}
+#| label: Model-2
+
+### make dummies and convert the resulting bools to numbers
+insurance = pd.get_dummies(insurance, drop_first = True)
+insurance = insurance * 1
+# omitted dummy variables that are now the benchmark: sex_female, smoker_no, region_northeast
+
+### fit the model
+model_2 = LinearRegression()
+model_2.fit(
+    X = insurance[["age", "sex_male"]],
+    y = insurance["charges"]
+)
+
+print("Intercept = ", model_2.intercept_)
+print("Coefficients = ", model_2.coef_)
+
+### plot
+# add prediction column
+insurance["charges_prediction"] = model_2.predict(insurance[["age", "sex_male"]])
+# wide to long
+long_plot = insurance.melt(insurance[["age", "sex_male"]], value_vars = ["charges", "charges_prediction"], var_name = "charges", value_name = "amount")
+
+(ggplot(long_plot,
+        aes(x = "age",
+            y = "amount",
+            color = "charges")) 
++ geom_point()
++ labs(title = "Predicted vs. actual insurance charges across ages and sexes")
++ theme_minimal()
+)
+
+```
+
+Again, as seen in the graph, Model 2 generally follows the baseline positive trend seen with a majority of the data, and the predictions do not overlap with nearly any actual datapoints. This time, the prediction includes a slight adjustment for whether the patient is categorized as female or male, seen with the doubled-up trendline. This still does not feel like a good model fit.
+
+Model 2's coefficient associated with the age predictor variable is around 228.43, which means that as a patient grows a year older, the predicted insurance charges increase by \$228.43, holding sex constant.
+
+Model 2's coefficient associated with the sex predictor variable is around 649.83, meaning that men pay \$649.83 more on average than women, holding age constant. Although women seem to pay more at the more defined, lower trendline, as seen in one of the initial plots produced in Part One, men do have higher insurance charges, on average, when accounting for the other datapoints.
+
+**3. Now make a model that does not include sex, but does include smoker. Report your results.**
+
+```{python}
+#| label: Model-3
+
+### fit the model
+model_3 = LinearRegression()
+model_3.fit(
+    X = insurance[["age", "smoker_yes"]],
+    y = insurance["charges"]
+)
+
+print("Intercept = ", model_3.intercept_)
+print("Coefficients = ", model_3.coef_)
+
+### plot
+# add prediction column
+insurance["charges_prediction"] = model_3.predict(insurance[["age", "smoker_yes"]])
+# wide to long
+long_plot = insurance.melt(insurance[["age", "smoker_yes"]], value_vars = ["charges", "charges_prediction"], var_name = "charges", value_name = "amount")
+
+(ggplot(long_plot,
+        aes(x = "age",
+            y = "amount",
+            color = "charges")) 
++ geom_point()
++ labs(title = "Predicted vs. actual insurance charges across ages and smoking status")
++ theme_minimal()
+)
+
+```
+
+Model 3 generally follows the baseline positive trend seen with a majority of the data, and the predictions overlap with a few more actual datapoints than the other two models so far. This time, the prediction includes a more pronounced adjustment for whether the patient smokes or not, seen with the two trendlines.
+
+Model 3's coefficient associated with the age predictor variable is around 253.14, which means that as a patient grows a year older, the predicted insurance charges increase by \$253.14, holding smoker status constant.
+
+Model 3's coefficient associated with the smoker status predictor variable is around 24048.87, meaning that smokers pay \$24,048.87 more on average than non-smokers, holding age constant.
+
+**4. Which model (Q2 or Q3) do you think better fits the data? Justify your answer by calculating the MSE for each model, and also by comparing R-squared values.**
+
+This hidden code defines a custom function for calculating MSE and R-squared values.
+
+```{python}
+#| label: MSE-R2-calculator-function
+#| code-fold: true
+
+def goodness_fit (df, y_var, models):
+  """
+  Returns a table of MSE and R2 values based on given data and models
+  
+  Parameters
+  ----------
+  df: dataframe
+    dataframe
+  y_var: series
+    column of dataframe that includes the y variable used in the model
+  models: dict
+    dictionary of models that lists each model's x variable(s)
+
+  Return
+  ------
+  dataframe
+    MSE and R-squared values for each provided model
+  """
+  rows = []
+  for name, Xcols in models.items():
+    # go thru list of models pulling data from X variables
+    X_var = df[Xcols]
+    # fit model based on columns in model list above
+    model = LinearRegression().fit(X_var, y_var)
+    # make predictions
+    y_var_ = model.predict(df[Xcols])
+    # save it
+    df[f"{name}_predict"] = y_var_
+    # calculate MSE
+    mse = mean_squared_error(y_var, y_var_)
+    # calculate r-squared
+    r2 = r2_score(y_var, y_var_)
+    # save data to df
+    rows.append({"Model": name, "MSE": mse, "R2": r2})
+
+  df_error = pd.DataFrame(rows)
+  return df_error
+
+```
+
+```{python}
+#| label: compare-Models-1-3
+
+# list models to compare based on x variables
+models = {
+    "Model 1": ["age"],
+    "Model 2": ["age", "sex_male"],
+    "Model 3": ["age", "smoker_yes"]
+}
+
+goodness_fit(insurance, insurance["charges"], models)
+
+```
+
+Model 3 fits the data better. The graph visually shows predictions that better match the data. Additionally, Model 3 has a smaller MSE and larger R-squared value than Model 2.
+
+# 3. Multiple Linear Models
+
+**1. Fit a model that uses age and bmi as predictors. (Do not include an interaction term, age\*bmi, between these two.) Report your results. How does the MSE compare to the model in Part Two Q1? How does the R-squared compare?**
+
+```{python}
+#| label: Model-4
+
+### fit the model
+model_4 = LinearRegression()
+model_4.fit(
+    X = insurance[["age", "bmi"]],
+    y = insurance["charges"]
+)
+
+print("Intercept = ", model_4.intercept_)
+print("Coefficients = ", model_4.coef_)
+
+### compare the models
+# list models to compare based on x variables
+models = {
+    "Model 1": ["age"],
+    "Model 4": ["age", "bmi"]
+}
+
+# call custom function for calculating goodness of fit
+goodness_fit(insurance, insurance["charges"], models)
+
+```
+
+Model 4 performs better than Model 1, as it has a slightly smaller MSE value and a slightly larger R-squared value.
+
+**2. Perhaps the relationships are not linear. Fit a model that uses age and age\^2 as predictors. How do the MSE and R-squared compare to the model in P2 Q1?**
+
+This hidden code defines a custom function for adding columns to a dataframe and raising the data to the n-th degree as part of building polynomial models.
+
+```{python}
+#| label: nth-degree-function
+#| code-fold: true
+
+def nth_degree (df, x_var_column, num):
+  """
+  Adds columns to a dataframe that manipulate the data in order to raise a variable to the nth degree in a model.
+
+  Parameters
+  ----------
+  df: dataframe
+    dataframe
+  x_var_column: string
+    name of column in dataframe that includes the x variable to increase to the nth degree in the model
+  num: num
+    number to which to raise the variable degree
+
+  Return
+  ------
+  dataframe
+    same dataframe as input but with added columns for desired degree
+  """
+  # account for how python starts counting at 0
+  num = num + 1
+
+  for num in range(2,num,1):
+    # set up new column's name
+    new_col = x_var_column + "_exp" + str(num)
+    # math for new column's data
+    df[new_col] = df[x_var_column] ** num
+
+  return df
+
+```
+
+This hidden code defines a custom function for making a list of the column names added to a dataframe when raising the data to the n-th degree as part of building polynomial models.
+
+```{python}
+#| label: nth-degree-col-names-function
+#| code-fold: true
+
+def nth_degree_cols (df, x_var_column, num):
+  """
+  Creates list of column names added by custom function nth_degree.
+  
+  Parameters
+  ----------
+  df: dataframe
+    dataframe
+  x_var_column: string
+    name of column in dataframe that includes the x variable to increase to the nth degree in the model
+  num: num
+    number to which to raise the variable degree
+
+  Return
+  ------
+  dataframe
+    same dataframe as input but with added columns for desired degree
+  """
+
+  # account for how python starts counting at 0
+  num = num + 1
+
+  # establish an empty list
+  col_names = [x_var_column]
+
+  for num in range(2,num,1):
+    # set up new column's name
+    new_col = x_var_column + "_exp" + str(num)
+    # Append this name to list of new column names
+    col_names.append(new_col)
+
+  return col_names
+
+```
+
+```{python}
+#| label: Model-5
+
+### call custom function to raise x variable to nth degree
+insurance = nth_degree(insurance, "age", 2)
+new_cols = nth_degree_cols(insurance, "age", 2)
+", ".join(new_cols)
+
+### fit the model
+model_5 = LinearRegression()
+model_5.fit(
+    X = insurance[new_cols],
+    y = insurance["charges"]
+)
+
+print("Intercept = ", model_5.intercept_)
+print("Coefficients = ", model_5.coef_)
+
+### compare the models
+# list models to compare based on x variables
+models = {
+    "Model 1": ["age"],
+    "Model 5": new_cols
+}
+
+# call custom function for calculating goodness of fit
+goodness_fit(insurance, insurance["charges"], models)
+
+```
+
+Model 5 performs just slightly better than Model 1, as it has a very slightly smaller MSE value and a very slightly larger R-squared value.
+
+**3. Fit a polynomial model of degree 4. How do the MSE and R-squared compare to the model in P2 Q1?**
+
+```{python}
+#| label: Model-6
+
+### call custom function to raise x variable to nth degree
+nth_degree(insurance, "age", 4)
+new_cols = nth_degree_cols(insurance, "age", 4)
+", ".join(new_cols)
+
+### fit the model
+model_6 = LinearRegression()
+model_6.fit(
+    X = insurance[new_cols],
+    y = insurance["charges"]
+)
+
+print("Intercept = ", model_6.intercept_)
+print("Coefficients = ", model_6.coef_)
+
+### compare the models
+# list models to compare based on x variables
+models = {
+    "Model 1": ["age"],
+    "Model 6": new_cols
+}
+
+# call custom function for calculating goodness of fit
+goodness_fit(insurance, insurance["charges"], models)
+
+```
+
+Model 6 performs just slightly better than Model 1, as it has a very slightly smaller MSE value and a very slightly larger R-squared value.
+
+**4. Fit a polynomial model of degree 12. How do the MSE and R-squared compare to the model in P2 Q1?**
+
+```{python}
+#| label: Model-7
+
+# call custom function to raise x variable to nth degree
+nth_degree(insurance, "age", 12)
+new_cols = nth_degree_cols(insurance, "age", 12)
+", ".join(new_cols)
+
+# fit the model
+model_7 = LinearRegression()
+model_7.fit(
+    X = insurance[new_cols],
+    y = insurance["charges"]
+)
+
+print("Intercept = ", model_7.intercept_)
+print("Coefficients = ", model_7.coef_)
+
+### compare the models
+# list models to compare based on x variables
+models = {
+    "Model 1": ["age"],
+    "Model 7": new_cols
+}
+
+# call custom function for calculating goodness of fit
+goodness_fit(insurance, insurance["charges"], models)
+
+```
+
+Model 7 performs just slightly better than Model 1, as it has a very slightly smaller MSE value and a very slightly larger R-squared value.
+
+**5. According to the MSE and R-squared, which is the best model? Do you agree that this is indeed the “best” model? Why or why not?**
+
+According to the MSE and R-squared values, Model 7 performs the best. However, it is unlikely the best model. Such a complex model likely overfits the training data. While this gives it better MSE and R-squared values when used with the training data, it is not necessarily better at predicting unseen data. We should perform further evaluation with cross-validation.
+
+**6. Plot the predictions from your model in Q4 as a line plot on top of the scatterplot of your original data.**
+
+```{python}
+#| label: Plot-Model-7
+#| code-fold: true
+
+### plot
+# add prediction columns
+insurance["charges_prediction_model7"] = model_7.predict(insurance[new_cols])
+# wide to long
+long_plot = insurance.melt(insurance[["age"]], value_vars = ["charges", "charges_prediction_model7"], var_name = "charges", value_name = "amount")
+
+(ggplot(long_plot,
+        aes(x = "age",
+            y = "amount",
+            color = "charges")) 
++ geom_point()
++ geom_line(data=long_plot[long_plot["charges"] == "charges_prediction_model7"])
++ labs(title = "Predicted vs. actual insurance charges across ages using Model 7")
++ theme_minimal()
+)
+
+```
+
+# 4. New Data
+
+This hidden code imports the new dataset.
+
+```{python}
+#| label: import-new-data
+#| code-fold: true
+
+# new data
+insurance_new = pd.read_csv("https://www.dropbox.com/s/sky86agc4s8c6qe/insurance_costs_2.csv?dl=1")
+
+```
+
+This hidden code defines a custom function for performing cross validation.
+
+```{python}
+#| label: cross-validation-function
+#| code-fold: true
+
+def cross_validation (df1, df2, y_var, models):
+  """
+  Fits a model given data in df1, makes predictions using new data from df2, and reports MSE for each model's predictions
+  
+  Parameters
+  ----------
+  df1: dataframe
+    dataframe of training data
+  df2: dataframe
+    dataframe of test data
+  y_var: string
+    name of column in both dataframes that includes the y variable used in the model
+  models: dict
+    dictionary of models that lists each model's x variable(s)
+
+  Return
+  ------
+  dataframe
+    MSE and R-squared values for each provided model
+  """
+  # initialize empty list
+  rows = []
+
+  for name, Xcols in models.items():
+    # go thru list of models pulling data from X variables
+    X_var = df1[Xcols]
+    # fit model based on columns in model list above - using TRAINING data
+    model = LinearRegression().fit(X_var, df1[[y_var]])
+    # make predictions - using TEST data
+    y_var_ = model.predict(df2[Xcols])
+    # save it to TEST dataframe
+    df2[f"{name}_predict"] = y_var_
+    # calculate MSE
+    mse = mean_squared_error(df2[[y_var]], y_var_)
+    # calculate r-squared
+    r2 = r2_score(df2[[y_var]], y_var_)
+    # save data to new df
+    rows.append({"Model": name, "MSE": mse, "R2": r2})
+
+  df_error = pd.DataFrame(rows)
+  return df_error
+
+```
+
+```{python}
+#| label: new-data-adjustments
+
+### adjust data for provided models
+# make dummies and convert the resulting bools to numbers - test data
+insurance_new = pd.get_dummies(insurance_new, drop_first = True)
+insurance_new = insurance_new * 1
+# omitted dummy variables that are now the benchmark: sex_female, smoker_no, region_northeast
+
+# adding columns for interaction terms - training data
+insurance["age:smoker"] = insurance["age"] * insurance["smoker_yes"]
+insurance["bmi:smoker"] = insurance["bmi"] * insurance["smoker_yes"]
+
+# adding columns for interaction terms - test data
+insurance_new["age:smoker"] = insurance_new["age"] * insurance_new["smoker_yes"]
+insurance_new["bmi:smoker"] = insurance_new["bmi"] * insurance_new["smoker_yes"]
+
+```
+
+```{python}
+#| label: cross-validation-provided-models
+
+# list models to compare based on x variables
+models = {
+    "Model A": ["age"],
+    "Model B": ["age", "bmi"],
+    "Model C": ["age", "bmi", "smoker_yes"],
+    "Model D": ["age", "bmi", "age:smoker", "bmi:smoker"],
+    "Model E": ["age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker"]
+}
+
+cross_validation(insurance, insurance_new, "charges", models)
+
+```
+
+Based on each model's predictions using the new data, Model E performs the best.
+
+```{python}
+#| label: Model-E-residuals-graph
+#| code-fold: true
+
+# simplify df
+df_plot = insurance_new[["age", "bmi", "charges", "Model E_predict", "smoker_yes", "age:smoker", "bmi:smoker"]]
+# wide to long
+long_plot = df_plot.melt(id_vars=["age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker"], value_vars = ["charges", "Model E_predict"], var_name = "charges", value_name = "amount")
+
+# plot
+(ggplot(long_plot,
+        aes(x = "age",
+            y = "amount",
+            color = "charges")) 
++ geom_point()
++ labs(title = "Residuals: Predicted vs. actual insurance charges according to Model E")
++ theme_minimal()
+)
+
+```
+
+# 5. Full Exploration
+
+```{python}
+#| label: new-data-adjustments-exploration
+
+### adjust data for possible models
+# adding columns for interaction terms - training data
+insurance["age:sex"] = insurance["age"] * insurance["sex_male"]
+# adding columns for interaction terms - test data
+insurance_new["age:sex"] = insurance_new["age"] * insurance_new["sex_male"]
+
+# adding columns for log of charges - training data
+insurance["log_charges"] = np.log(insurance["charges"])
+# adding columns for log of charges - test data
+insurance_new["log_charges"] = np.log(insurance_new["charges"])
+
+# adding columns for log of ages - training data
+insurance["log_age"] = np.log(insurance["age"])
+# adding columns for log of ages - test data
+insurance_new["log_age"] = np.log(insurance_new["age"])
+
+```
+
+*Note: Models E, F, and G use `charges` as the y-variable.*
+```{python}
+#| label: new-data-cross-validation
+
+# list models to compare based on x variables
+models = {
+    "Model E": ["age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker"],
+    "Model F": ["age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker", "age:sex"],
+    "Model G": ["age", "bmi", "smoker_yes", "sex_male", "age:smoker", "bmi:smoker", "age:sex"]
+}
+
+cross_validation(insurance, insurance_new, "charges", models)
+# note: y-var is charges
+
+```
+
+*Note: Models H-M use `log(charges)` as the y-variable.*
+```{python}
+#| label: new-data-cross-validation-log
+
+# list models to compare based on x variables
+models = {
+    "Model H": ["age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker"],
+    "Model I": ["age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker", "age:sex"],
+    "Model J": ["age", "bmi", "smoker_yes", "sex_male", "age:smoker", "bmi:smoker", "age:sex"],
+    "Model K": ["log_age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker"],
+    "Model L": ["log_age", "bmi", "smoker_yes", "age:smoker", "bmi:smoker", "age:sex"],
+    "Model M": ["log_age", "bmi", "smoker_yes", "sex_male", "age:smoker", "bmi:smoker", "age:sex"]
+}
+
+cross_validation(insurance, insurance_new, "log_charges", models)
+# note: y-var is log(charges)
+
+```
+
+I started by experimenting using Model E as a base, since it was so far the best performing model.
+
+First, I tried adding an interaction term between the age and sex variables, since I know that women live longer than men, on average. I tried this by including just the interaction term between age and sex (Model F), and also the variable of sex and the interaction (Model G). These did not improve upon the MSE and R-squared values of Model E.
+
+Next, I transformed the y-variable, charges, by taking its log. This is often helpful with skewed data, and this dataset does have those two distinct bands of higher datapoints. I then fit Models H, I, and J by recreating the list of included x-variables I used in Models E, F, and G, but this time using log(charges) instead of just charges as the y-variable. I found that Model J, which included both the sex variable and the age:sex interaction term, performed the best.
+
+Finally, I wondered if the variable age might lead to a flattening threshold of charges at higher values, so I also tried taking the log of age. I fit Models K, L, and M by recreating the list of included x-variables I used in Models H, I, and J, but this time using log(age) instead of just age.
+
+**Model M performed the best, with an MSE of 0.10839 and an R-squared value of 0.900049. Model M predicts log(charges) based on log(age), bmi, smoker status, sex, interaction of age and smoker, interaction of bmi and smoker, and interaction of age and sex.**
+
+```{python}
+#| label: Model-M-residuals-graph
+#| code-fold: true
+
+# simplify df
+df_plot = insurance_new[["log_age", "bmi", "smoker_yes", "sex_male", "age:smoker", "bmi:smoker", "age:sex", "log_charges", "Model M_predict"]]
+# wide to long
+long_plot = df_plot.melt(id_vars=["log_age", "bmi", "smoker_yes", "sex_male", "age:smoker", "bmi:smoker", "age:sex"], value_vars = ["log_charges", "Model M_predict"], var_name = "log_charges", value_name = "amount")
+
+# plot
+(ggplot(long_plot,
+        aes(x = "log_age",
+            y = "amount",
+            color = "log_charges")) 
++ geom_point()
++ labs(title = "Residuals: Predicted vs. actual insurance charges according to Model M")
++ theme_minimal()
+)
+
+```
