@@ -3125,9 +3125,9 @@ weighted avg       0.99      0.99      0.99       333
 </section>
 <section id="decision-tree" class="level1">
 <h1>Decision Tree</h1>
-<div id="cell-17" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;colab&quot;,&quot;value&quot;:{&quot;base_uri&quot;:&quot;https://localhost:8080/&quot;,&quot;height&quot;:362}}" data-outputid="d91ecc9d-e312-4109-e087-d76326495c53" data-execution_count="40">
+<div id="cell-17" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;colab&quot;,&quot;value&quot;:{&quot;base_uri&quot;:&quot;https://localhost:8080/&quot;,&quot;height&quot;:362}}" data-outputid="d91ecc9d-e312-4109-e087-d76326495c53">
 <div class="sourceCode cell-code" id="cb16"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1"></a><span class="co">### Decision Tree</span></span>
-<span id="cb16-2"><a href="#cb16-2"></a><span class="co"># start by tuning to see best number of neighbors</span></span>
+<span id="cb16-2"><a href="#cb16-2"></a><span class="co"># start by tuning to see best ccp_alpha</span></span>
 <span id="cb16-3"><a href="#cb16-3"></a>dt_pipeline <span class="op">=</span> Pipeline(</span>
 <span id="cb16-4"><a href="#cb16-4"></a>    [</span>
 <span id="cb16-5"><a href="#cb16-5"></a>     (<span class="st">&quot;preprocessing1&quot;</span>, ct_dummies),</span>
