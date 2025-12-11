@@ -1,0 +1,384 @@
+---
+title: "Regression Take Home"
+author: Lily
+format:
+    html:
+        embed-resources: true
+        code-line-numbers: true
+---
+
+# 0. Data Prepration
+
+```{python}
+# packages
+import pandas as pd
+import numpy as np
+from plotnine import *
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, PolynomialFeatures
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.metrics import mean_squared_error, r2_score, root_mean_squared_error
+from sklearn.model_selection import GridSearchCV
+from plotnine import *
+
+```
+
+```{python}
+# data
+ames = pd.read_csv('regression_train_new.csv')
+
+```
+
+```{python}
+#| code-fold: true
+
+# preview columns and data
+print(ames.head())
+
+# statstical summary
+print(ames.describe())
+
+# missing values
+print(ames.isna().any())
+print(ames.isna().sum()) # missing 362 lot frontage out of 2197 observations, missing 1 electrical
+
+# data types
+ames.dtypes
+```
+
+```{python}
+# mandatory data transformation
+ames['log_SalePrice'] = np.log(ames['SalePrice'])
+
+# experimental data transformations
+# omitting TotRms AbvGrd for potential multicollinearity
+ames['log_Lot Area'] = np.log(ames['Lot Area'])
+ames['log_Gr Liv Area'] = np.log(ames['Gr Liv Area'])
+
+#ames['log_Lot Frontage'] = np.log(ames['Lot Frontage'])
+#ames['int_qual_liv'] = ames['Overall Qual'] * ames['log_Gr Liv Area']
+#ames["Bathrooms_per_Bedrooms"] = (ames["Full Bath"] + (ames['Half Bath'] * 0.5))/ ames['Bedroom AbvGr'].replace(0, np.nan)
+
+ames["pool_yes"] = (ames["Pool Area"] > 0).astype(int)
+ames["screenporch_yes"] = (ames["Screen Porch"] > 0).astype(int)
+ames['House Age'] = ames["Yr Sold"] - ames['Year Built']
+ames['Rooms_per_Sqft'] = ames['TotRms AbvGrd'] / ames['Gr Liv Area']
+
+```
+
+```{python}
+ames.head()
+#ames.describe()
+```
+
+```{python}
+ames = ames.dropna()
+
+X = ames.drop(['SalePrice', 'log_SalePrice', 'PID', 'TotRms AbvGrd', 'Lot Area', 'Pool Area', 'Screen Porch', 'Yr Sold', 'Year Built'], axis = 1)
+y = ames[['log_SalePrice']]
+```
+
+# 1. Linear
+
+**Linear**
+
+```{python}
+# column transformer - dummies
+ct_dummies = ColumnTransformer(
+    [
+    ("dummify", OneHotEncoder(sparse_output = False, handle_unknown="ignore", drop='first', min_frequency=0.01), ["Street", "Neighborhood", "Bldg Type", "House Style", "Roof Style", "Heating", "Central Air", "Electrical", "Functional", "Sale Type"])
+    ],
+    remainder = "passthrough"
+)
+```
+
+```{python}
+# checking dummy transformation
+X_train, X_test, y_train, y_test = train_test_split(ames.drop(['SalePrice', 'PID'], axis=1), ames[['SalePrice']], random_state = 321)
+
+ct_dummies.fit_transform(X_train)
+```
+
+```{python}
+# create pipeline for the Linear Model (all variables)
+lr_pipeline = Pipeline(
+  [("preprocessing", ct_dummies),
+  ("standardize", StandardScaler()),
+  ("linear_regression", LinearRegression())]
+).set_output(transform="pandas")
+```
+
+```{python}
+print(lr_pipeline)
+```
+
+```{python}
+# fit pipeline to full dataset
+lr_fitted = lr_pipeline.fit(X, y)
+```
+
+```{python}
+# create empty list of F1 score
+rmse_compare = []
+```
+
+```{python}
+# cross-validation to estimate RMSE score
+scores = cross_val_score(lr_pipeline,
+                         X=X,
+                         y=y,
+                         scoring="neg_root_mean_squared_error",
+                         cv=5)
+
+# score math
+rmse = -scores.mean()
+# add to list
+rmse_compare.append({"model": "lr", "rmse": rmse})
+# report score here
+rmse
+```
+
+**Ridge**
+
+```{python}
+# create pipeline for the Ridge Model (all variables)
+ridge_pipeline = Pipeline(
+  [("preprocessing", ct_dummies),
+  ("standardize", StandardScaler()),
+  ("ridge", Ridge())]
+).set_output(transform="pandas")
+
+# tune ridge regression's lambda hyperparameter
+alphas = {'ridge__alpha': np.array([0.001, 0.01, 0.1, 1, 10, 100])}
+
+gscv = GridSearchCV(ridge_pipeline, param_grid=alphas, cv = 5, scoring='neg_root_mean_squared_error')
+
+# feed in the data and fit
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+ridge_pipeline_best = gscv.best_estimator_
+ridge_model = ridge_pipeline_best.named_steps["ridge"]
+
+# score math
+rmse = -gscv_fitted.best_score_
+# add to list
+rmse_compare.append({"model": "ridge", "rmse": rmse})
+# report score here
+rmse
+```
+
+```{python}
+# check tuned parameters
+df_cv_results_ = pd.DataFrame(gscv_fitted.cv_results_)
+df_cv_results_.sort_values(by = "rank_test_score")
+```
+
+**Lasso**
+
+```{python}
+# create pipeline for the Lasso Model (all variables)
+lasso_pipeline = Pipeline(
+  [("preprocessing", ct_dummies),
+  ("standardize", StandardScaler()),
+  ("lasso", Lasso())]
+).set_output(transform="pandas")
+
+# tune lasso regression's lambda hyperparameter
+alphas = {'lasso__alpha': np.array([0.001, 0.01, 0.1, 1, 10, 100])}
+
+gscv = GridSearchCV(lasso_pipeline, param_grid=alphas, cv = 5, scoring='neg_root_mean_squared_error')
+
+# feed in the data and fit
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+lasso_pipeline_best = gscv.best_estimator_
+lasso_model = lasso_pipeline_best.named_steps["lasso"]
+
+# score math
+rmse = -gscv_fitted.best_score_
+# add to list
+rmse_compare.append({"model": "lasso", "rmse": rmse})
+# report score here
+rmse
+```
+
+```{python}
+# check tuned parameters
+df_cv_results_ = pd.DataFrame(gscv_fitted.cv_results_)
+df_cv_results_.sort_values(by = "rank_test_score")
+```
+
+**Elastic**
+
+```{python}
+# create pipeline for the Elastic Net Model (all variables)
+elastic_pipeline = Pipeline(
+  [("preprocessing", ct_dummies),
+  ("standardize", StandardScaler()),
+  ("elastic", ElasticNet())]
+).set_output(transform="pandas")
+
+# tune elastic net's lambda and alpha hyperparameters
+param_grid = {
+    "elastic__alpha": [1, 10, 100],
+    "elastic__l1_ratio": np.arange(0.0, 1.2, 0.2),
+}
+
+gscv = GridSearchCV(elastic_pipeline, param_grid=param_grid, cv = 5, scoring='neg_root_mean_squared_error')
+
+# feed in the data and fit
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+elastic_pipeline_best = gscv.best_estimator_
+elastic_model = elastic_pipeline_best.named_steps["elastic"]
+
+# score math
+rmse = -gscv_fitted.best_score_
+# add to list
+rmse_compare.append({"model": "elastic", "rmse": rmse})
+# report score here
+rmse
+```
+
+```{python}
+# check tuned parameters
+df_cv_results_ = pd.DataFrame(gscv_fitted.cv_results_)
+df_cv_results_.sort_values(by = "rank_test_score")
+```
+
+# 2. KNN
+
+```{python}
+# start by tuning to see best number of neighbors
+knn_pipeline = Pipeline(
+    [
+     ("preprocessing", ct_dummies),
+     ("standardize", StandardScaler()),
+     ("knn", KNeighborsRegressor())
+    ],
+).set_output(transform="pandas")
+
+neighbors = {'knn__n_neighbors': np.arange(1, 11, 1)}
+
+gscv = GridSearchCV(knn_pipeline, param_grid=neighbors, cv = 5, scoring='neg_root_mean_squared_error')
+
+# feed in the data and fit
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+knn_pipeline_best = gscv.best_estimator_
+knn_model = knn_pipeline_best.named_steps["knn"]
+
+# score math
+rmse = -gscv_fitted.best_score_
+# add to list
+rmse_compare.append({"model": "knn", "rmse": rmse})
+# report score here
+rmse
+```
+
+# 3. Decision Tree 
+
+```{python}
+# start by tuning to see best number of nodes
+dt_pipeline = Pipeline(
+  [
+    ("preprocessing", ct_dummies),
+    ("dt", DecisionTreeRegressor())]
+).set_output(transform="pandas")
+
+tuning = {'dt__ccp_alpha': np.arange(0, 1, 0.1),
+          'dt__max_depth': np.arange(1,10, 1)
+}
+
+gscv = GridSearchCV(dt_pipeline, param_grid=tuning, cv = 5, scoring='neg_root_mean_squared_error')
+
+# feed in data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+dt_pipeline_best = gscv.best_estimator_
+dt_model = dt_pipeline_best.named_steps["dt"]
+
+# score math
+rmse = -gscv_fitted.best_score_
+# add to list
+rmse_compare.append({"model": "dt", "rmse": rmse})
+# report score here
+rmse
+```
+
+
+# 4. Comparison 
+
+```{python}
+# create dataframe for comparing rmse
+rmse_compare_df = pd.DataFrame(rmse_compare)
+rmse_compare_df.sort_values(by = "rmse", ascending = True)
+```
+
+# 5. Score Data
+
+```{python}
+ames_score = pd.read_csv('regression_test_new.csv')
+
+```
+
+Follow the exact same data prep!
+```{python}
+# mandatory data transformation
+#ames_score['log_SalePrice'] = np.log(ames_score['SalePrice'])
+
+# experimental data transformations
+# omitting TotRms AbvGrd for potential multicollinearity
+ames_score['log_Lot Area'] = np.log(ames_score['Lot Area'])
+ames_score['log_Gr Liv Area'] = np.log(ames_score['Gr Liv Area'])
+
+#ames_score['log_Lot Frontage'] = np.log(ames_score['Lot Frontage'])
+#ames_score['int_qual_liv'] = ames_score['Overall Qual'] * ames_score['log_Gr Liv Area']
+#ames_score["Bathrooms_per_Bedrooms"] = (ames_score["Full Bath"] + (ames_score['Half Bath'] * 0.5))/ ames_score['Bedroom AbvGr'].replace(0, np.nan)
+
+ames_score["pool_yes"] = (ames_score["Pool Area"] > 0).astype(int)
+ames_score["screenporch_yes"] = (ames_score["Screen Porch"] > 0).astype(int)
+ames_score['House Age'] = ames_score["Yr Sold"] - ames_score['Year Built']
+ames_score['Rooms_per_Sqft'] = ames_score['TotRms AbvGrd'] / ames_score['Gr Liv Area']
+
+```
+
+
+```{python}
+X_score = ames_score.drop(['PID', 'TotRms AbvGrd', 'Lot Area', 'Pool Area', 'Screen Porch', 'Yr Sold', 'Year Built'], axis = 1)
+```
+
+Use best pipeline
+```{python}
+prediction = lasso_pipeline_best.predict(X_score)
+prediction = np.exp(prediction)
+
+ames_score["SalePrice"] = prediction
+```
+
+```{python}
+ames_score.head()
+```
+
+```{python}
+ames_score = ames_score[['PID', 'SalePrice']]
+```
+
+Export data
+```{python}
+# create csv file to download and view
+# check file's rules for repetition
+ames_score.to_csv("regression_submission.csv", index=False, header=True)
+```
+
+CV rmse: 0.140265
+score rmse: 0.14751

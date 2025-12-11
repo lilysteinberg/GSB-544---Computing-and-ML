@@ -1,0 +1,523 @@
+---
+title: "Classification Take Home"
+author: Lily
+format:
+    html:
+        embed-resources: true
+        code-line-numbers: true
+---
+
+# 0. Data Prepration
+
+```{python}
+# packages
+import numpy as np
+import pandas as pd
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, PolynomialFeatures
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import r2_score, mean_squared_error, classification_report, confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay, roc_auc_score
+from sklearn.model_selection import GridSearchCV, cross_val_score, StratifiedKFold, cross_val_predict
+import matplotlib.pyplot as plt
+
+```
+
+```{python}
+# data
+cah = pd.read_csv('classification_CAH_train.csv')
+
+```
+
+```{python}
+#| code-fold: true
+
+# preview columns and data
+print(cah.head())
+
+# statstical summary
+print(cah.describe())
+
+# missing values
+print(cah.isna().any())
+print(cah.isna().sum()) # no missing data!
+
+# data types
+cah.dtypes
+```
+
+```{python}
+# experimental data transformations
+#label_map_10 = {'No': 0, 'Yes, somewhat religious': 2, 'Yes, very religious': 3}
+#cah['Q10_ordinal'] = cah["Q10"].map(label_map_10)
+#label_map_5 = {'High school or less': 0, 'Some college': 2, 'College degree': 3, 'Graduate degree': 4}
+#cah['Q5_ordinal'] = cah["Q5"].map(label_map_5)
+
+#cah['moral_index'] = cah[['Q6','Q7','Q8','Q12']].applymap(lambda v: 1 if v=='Yes' else 0).sum(axis=1)
+
+```
+
+```{python}
+X = cah.drop(['political_affiliation', 'id_num'], axis = 1)
+y = cah['political_affiliation']
+```
+
+```{python}
+# column transformer - dummies
+ct_dummies = ColumnTransformer(
+    [
+    ("dummify", OneHotEncoder(sparse_output = False, handle_unknown="ignore", drop='first'), ["Q1", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10", "Q11", "Q12", "Q13", "Q14", "Q15", "Q16", "Q17", "Q18"])
+    ],
+    remainder = "passthrough"
+)
+```
+
+```{python}
+ct_interactions = ColumnTransformer(
+    [
+    ("interaction2", PolynomialFeatures(interaction_only = True), ["dummify__Q4_Moderate", "remainder__Q2"]), # ideology x age
+    ("interaction2b", PolynomialFeatures(interaction_only = True), ["dummify__Q4_Liberal", "remainder__Q2"]), # ideology x age
+
+    ("interaction3", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Latino", "dummify__Q10_Yes, very religious"]), # race x religion
+    ("interaction3b", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Latino", "dummify__Q10_Yes, somewhat religious"]), # race x religion
+    ("interaction3c", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Black", "dummify__Q10_Yes, very religious"]), # race x religion
+    ("interaction3d", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Black", "dummify__Q10_Yes, somewhat religious"]), # race x religion
+    ("interaction3e", PolynomialFeatures(interaction_only = True), ["dummify__Q6_White", "dummify__Q10_Yes, very religious"]), # race x religion
+    ("interaction3f", PolynomialFeatures(interaction_only = True), ["dummify__Q6_White", "dummify__Q10_Yes, somewhat religious"]), # race x religion
+
+    ("interaction4", PolynomialFeatures(interaction_only = True), ["dummify__Q10_Yes, very religious", "dummify__Q11_Pro-life"]), # religion x choice
+    ("interaction4b", PolynomialFeatures(interaction_only = True), ["dummify__Q10_Yes, somewhat religious", "dummify__Q11_Pro-life"]), # religion x choice
+
+    #("interaction5", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Latino", "dummify__Q5_High school or less"]), # race x education
+    #("interaction5b", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Latino", "dummify__Q5_Some college"]), # race x education
+    #("interaction5c", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Latino", "dummify__Q5_Graduate degree"]), # race x education
+    #("interaction5d", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Black", "dummify__Q5_High school or less"]), # race x education
+    #("interaction5e", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Black", "dummify__Q5_Some college"]), # race x education
+    #("interaction5f", PolynomialFeatures(interaction_only = True), ["dummify__Q6_Black", "dummify__Q5_Graduate degree"]), # race x education
+    #("interaction5g", PolynomialFeatures(interaction_only = True), ["dummify__Q6_White", "dummify__Q5_High school or less"]), # race x education
+    #("interaction5h", PolynomialFeatures(interaction_only = True), ["dummify__Q6_White", "dummify__Q5_Some college"]), # race x education
+    #("interaction5i", PolynomialFeatures(interaction_only = True), ["dummify__Q6_White", "dummify__Q5_Graduate degree"]), # race x education
+
+    #("interaction6", PolynomialFeatures(interaction_only = True), ["dummify__Q1_Male", "dummify__Q18_Yes"]), # sex x politican sex scandal
+    ],
+    remainder="passthrough"
+)
+```
+
+```{python}
+# create empty list of accuracy score
+accuracy_compare = []
+
+cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+```
+
+# LDA
+
+```{python}
+# make pipeline
+lda_pipeline = Pipeline(
+  [
+    ("preprocessing", ct_dummies),
+    ("lda", LinearDiscriminantAnalysis())
+  ]
+)
+
+# fit
+lda_fitted = lda_pipeline.fit(X, y)
+
+# cross-validation to estimate F1 score
+scores = cross_val_score(lda_pipeline,
+                         X=X,
+                         y=y,
+                         scoring="accuracy",
+                         cv=cv)
+
+# add to list
+accuracy_compare.append({"model": "lda", "accuracy": scores.mean()})
+
+# report score here
+scores.mean()
+```
+
+# QDA
+
+```{python}
+# make pipeline for tuning
+qda_pipeline = Pipeline(
+  [
+    ("preprocessing", ct_dummies),
+    #("preprocessing2", ct_interactions),
+    ("qda", QuadraticDiscriminantAnalysis())]
+)
+
+tuning = {'qda__reg_param': np.arange(0, 1, 0.1)}
+
+gscv = GridSearchCV(qda_pipeline, param_grid=tuning, cv = cv, scoring='accuracy', n_jobs=-1)
+
+# feed in the data and fit
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the SVC inside it
+qda_pipeline_best = gscv.best_estimator_
+qda_model_best = qda_pipeline_best.named_steps["qda"]
+
+# fit
+qda_fitted = qda_pipeline_best.fit(X, y)
+
+# cross-validation to estimate f1
+scores = cross_val_score(qda_pipeline_best,
+                         X=X,
+                         y=y,
+                         scoring="accuracy",
+                         cv=5)
+
+# add to list
+accuracy_compare.append({"model": "qda", "accuracy": scores.mean()})
+
+# report score here
+scores.mean()
+```
+
+# KNN
+
+```{python}
+# make pipeline for knn tuning
+knn_pipeline = Pipeline(
+    [
+     ("preprocessing", ct_dummies),
+     ("standardize", StandardScaler()),
+     ("knn", KNeighborsClassifier())
+    ],
+).set_output(transform="pandas")
+
+neighbors = {'knn__n_neighbors': np.arange(1, 11, 1)}
+
+gscv = GridSearchCV(knn_pipeline, param_grid=neighbors, cv = cv, scoring='accuracy')
+
+# feed in data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the SVC inside it
+knn_pipeline_best = gscv.best_estimator_
+knn_model_best = knn_pipeline_best.named_steps["knn"]
+
+# fit
+knn_fitted = knn_pipeline_best.fit(X, y)
+
+# cross-validation to estimate f1
+scores = cross_val_score(knn_pipeline_best,
+                         X=X,
+                         y=y,
+                         scoring="accuracy",
+                         cv=5)
+
+# add to list
+accuracy_compare.append({"model": "knn", "accuracy": scores.mean()})
+
+# report score here
+scores.mean()
+```
+
+# Decision Tree
+
+```{python}
+# make pipeline for decision tree tuning
+dt_pipeline = Pipeline(
+    [
+     ("preprocessing", ct_dummies),
+     ("dt", DecisionTreeClassifier())
+    ],
+).set_output(transform="pandas")
+
+tuning = {
+    'dt__ccp_alpha': np.arange(0, 1, 0.1),
+    'dt__max_depth': np.arange(1,10, 1)
+}
+
+gscv = GridSearchCV(dt_pipeline, param_grid=tuning, cv = cv, scoring='accuracy')
+
+# feed in data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the SVC inside it
+dt_pipeline_best = gscv.best_estimator_
+dt_model_best = dt_pipeline_best.named_steps["dt"]
+
+# fit
+dt_fitted = dt_pipeline_best.fit(X, y)
+
+# cross-validation to estimate f1
+scores = cross_val_score(dt_pipeline_best,
+                         X=X,
+                         y=y,
+                         scoring="accuracy",
+                         cv=5)
+
+# add to list
+accuracy_compare.append({"model": "dt", "accuracy": scores.mean()})
+
+# report score here
+scores.mean()
+```
+
+# Logistic OvR
+
+```{python}
+# make pipeline for logistic tuning
+logistic_pipeline = Pipeline(
+  [
+   ("preprocessing", ct_dummies),
+   ("standardize", StandardScaler()),
+   ("logistic", LogisticRegression(penalty = 'l1', max_iter=500)) #setting max iter reduces warnings
+  ]
+).set_output(transform="pandas")
+
+# tune lasso penalty hyperparameter
+# splitting up the L1 (lasso) penalty and the 'none' penalty like this reduce the warnings that occur because 'none' and 'C' do not match
+param_grid = [
+    # Case 1: L1 penalty (lasso)
+    {
+        'logistic__penalty': ['l1'],
+        'logistic__C': [0.1, 1, 10],
+        'logistic__solver': ['liblinear', 'saga']
+    }
+]
+
+gscv = GridSearchCV(logistic_pipeline, param_grid=param_grid, cv = cv, scoring='accuracy', n_jobs=-1)
+
+# feed in the data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+logistic_pipeline_best = gscv.best_estimator_
+logistic_model_best = logistic_pipeline_best.named_steps["logistic"]
+
+# make predictions
+logit_acc = gscv.best_score_
+
+# add to list
+accuracy_compare.append({"model": "logistic OvR", "accuracy": logit_acc})
+
+# report score here
+logit_acc 
+```
+
+**Adding Interactions**
+
+```{python}
+# make pipeline for logistic tuning
+logistic_pipeline_ints = Pipeline(
+  [
+   ("preprocessing1", ct_dummies),
+   ("preprocessing2", ct_interactions),
+   ("standardize", StandardScaler()),
+   ("logistic", LogisticRegression())
+  ]
+).set_output(transform="pandas")
+
+# tune lasso penalty hyperparameter
+# splitting up the L1 (lasso) penalty and the 'none' penalty like this reduce the warnings that occur because 'none' and 'C' do not match
+param_grid = [
+    # Case 1: L1 and L2 penalties
+    {
+        'logistic__penalty': ['l1', 'l2'],
+        'logistic__C': [0.001, 0.01, 0.1, 1, 10, 100],
+        'logistic__solver': ['liblinear', 'saga']
+    },
+    # Case 2: Elastic net (requires saga + l1_ratio)
+    {
+        'logistic__penalty': ['elasticnet'],
+        'logistic__C': [0.001, 0.01, 0.1, 1, 10, 100],
+        'logistic__solver': ['saga'],
+        'logistic__l1_ratio': [0.1, 0.5, 0.9]   # try a few mixes
+    },
+    # Case 3: No penalty
+    {
+        'logistic__penalty': ['none'],
+        'logistic__solver': ['lbfgs', 'saga']
+    }
+]
+
+gscv = GridSearchCV(logistic_pipeline_ints, param_grid=param_grid, cv = cv, scoring='accuracy', n_jobs=-1)
+
+# feed in the data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+logistic_pipeline_ints_best = gscv.best_estimator_
+logistic_model_ints_best = logistic_pipeline_ints_best.named_steps["logistic"]
+
+# make predictions
+logit_acc = gscv.best_score_
+
+# add to list
+accuracy_compare.append({"model": "logistic interactions OvR", "accuracy": logit_acc})
+
+# report score here
+logit_acc 
+```
+
+**Simple**
+```{python}
+logistic_simple = Pipeline(
+  [
+    ("preprocessing", ct_dummies),
+    ("standardize", StandardScaler()),
+    ("logistic", LogisticRegression(
+        multi_class="multinomial",
+        penalty="l2",
+        solver="lbfgs",
+        max_iter=1000
+    ))
+  ]
+)
+
+param_grid = {'logistic__C': [0.1, 1, 10]}
+
+gscv = GridSearchCV(logistic_simple, param_grid=param_grid, cv = cv, scoring='accuracy', n_jobs=-1)
+
+# feed in the data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the logistic inside it
+logistic_simple_pipeline_best = gscv.best_estimator_
+logistic_simple_model_best = logistic_simple_pipeline_best.named_steps["logistic"]
+
+# make predictions
+logit_acc = gscv.best_score_
+
+# add to list
+accuracy_compare.append({"model": "logistic simple", "accuracy": logit_acc})
+
+# report score here
+logit_acc 
+```
+
+# SVC OvO
+```{python}
+# make pipeline for svc tuning
+svc_pipeline = Pipeline(
+  [
+   ("preprocessing1", ct_dummies),
+   ("standardize", StandardScaler()),
+   ("svc", SVC(kernel="linear", probability=False))
+  ]
+).set_output(transform="pandas")
+
+param_grid = {'svc__C': [0.1, 1, 10]}
+
+gscv = GridSearchCV(svc_pipeline, param_grid=param_grid, cv = cv, scoring='accuracy', n_jobs=-1)
+
+# feed in the data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the svc inside it
+svc_pipeline_best = gscv.best_estimator_
+svc_model_best = svc_pipeline_best.named_steps["svc"]
+
+# make predictions
+svc_acc = gscv.best_score_
+
+# add to list
+accuracy_compare.append({"model": "SVC OvO", "accuracy": svc_acc})
+
+# report score here
+svc_acc 
+```
+
+```{python}
+# check tuned parameters
+df_cv_results_ = pd.DataFrame(gscv_fitted.cv_results_)
+df_cv_results_.sort_values(by = "rank_test_score")
+```
+
+# SVM OvO
+```{python}
+# make pipeline for svc tuning
+svm_pipeline = Pipeline(
+  [
+   ("preprocessing", ct_dummies),
+   ("preprocessing2", ct_interactions),
+   ("standardize", StandardScaler()),
+   ("svm", SVC())
+  ]
+).set_output(transform="pandas")
+
+param_grid = {
+    'svm__C': [0.1, 1, 10],
+    'svm__gamma': ['scale', 'auto', 0.1],
+    'svm__kernel': ['rbf', 'poly']
+    }
+gscv = GridSearchCV(svm_pipeline, param_grid=param_grid, cv = cv, scoring='accuracy', n_jobs=-1)
+
+# feed in the data
+gscv_fitted = gscv.fit(X, y)
+
+# Best fitted pipeline & the svc inside it
+svm_pipeline_best = gscv.best_estimator_
+svm_model_best = svm_pipeline_best.named_steps["svm"]
+
+# make predictions
+svm_acc = gscv.best_score_
+
+# add to list
+accuracy_compare.append({"model": "SVM OvO", "accuracy": svm_acc})
+
+# report score here
+svm_acc 
+```
+
+Save the best model - SVM OvO in this case
+Refit with all the data
+```{python}
+best_model = gscv.best_estimator_
+best_model.fit(X, y)   # Safe to do; grid search is already complete
+```
+
+# Comparison 
+```{python}
+# create dataframe for comparing rmse
+accuracy_compare_df = pd.DataFrame(accuracy_compare)
+accuracy_compare_df.sort_values(by = "accuracy", ascending = False)
+```
+
+# Score
+
+```{python}
+# data
+cah_score = pd.read_csv('classification_CAH_test.csv')
+
+```
+
+```{python}
+X_score = cah_score.drop(['id_num'], axis = 1)
+```
+
+Use best pipeline
+```{python}
+prediction = best_model.predict(X_score)
+
+cah_score["political_affiliation_predicted"] = prediction
+```
+
+```{python}
+cah_score.head()
+```
+
+```{python}
+cah_score = cah_score[['id_num', 'political_affiliation_predicted']]
+```
+
+Export data
+```{python}
+# create csv file to download and view
+# check file's rules for repetition
+cah_score.to_csv("classification_submission.csv", index=False, header=True)
+```
+
+CV accuracy: 0.640074
+score accuracy: 0.59638
